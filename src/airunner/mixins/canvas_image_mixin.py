@@ -74,9 +74,7 @@ class CanvasImageMixin:
             pixmap = QPixmap.fromImage(qimage)
 
             # apply the layer offset
-            x = image.position.x() + self.pos_x
-            y = image.position.y() + self.pos_y
-            location = QPoint(int(x), int(y)) + self.current_layer.offset
+            location = image.position + QPoint(self.pos_x, self.pos_y) + self.current_layer.offset
 
             # draw the image
             painter.drawPixmap(location, pixmap)
@@ -311,7 +309,9 @@ class CanvasImageMixin:
         return [ImageData(imageData.position, imageData.image.copy()) for imageData in self.layers[index].images]
 
     def rotate_90_clockwise(self):
+        print("rotate")
         if self.current_active_image:
+            print("rotating")
             self.parent.history.add_event({
                 "event": "rotate",
                 "layer_index": self.current_layer_index,

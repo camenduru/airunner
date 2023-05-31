@@ -1,6 +1,8 @@
 from PIL import ImageDraw
 from PyQt6.QtCore import Qt, QPointF, QPoint, QSize, QRect
 from PyQt6.QtGui import QPainter, QPainterPath, QColor, QPen, QImage
+
+from airunner.models.imagedata import ImageData
 from airunner.models.linedata import LineData
 from PIL import Image
 
@@ -138,35 +140,115 @@ class CanvasBrushesMixin:
         return pen
 
     def handle_draw(self, event):
-        start = event.pos() - QPoint(self.pos_x, self.pos_y)
-        pen = self.pen(event)
-        opacity = 255
-        if event.button() == Qt.MouseButton.LeftButton or Qt.MouseButton.LeftButton in event.buttons():
-            opacity = self.primary_brush_opacity
-        elif event.button() == Qt.MouseButton.RightButton or Qt.MouseButton.RightButton in event.buttons():
-            opacity = self.secondary_brush_opacity
-        if len(self.current_layer.lines) > 0:
-            previous = LineData(self.current_layer.lines[-1].start_point, start, pen, self.current_layer_index, opacity)
-            self.current_layer.lines[-1] = previous
+        brush_size = int(self.settings_manager.settings.mask_brush_size.get() / 2)
+        image = self.current_layer.images[0].image if len(self.current_layer.images) > 0 else None
+        image_pos = self.current_layer.images[0].position if len(self.current_layer.images) > 0 else None
+        if image is None:
+            image = Image.new("RGBA", (512, 512), (0, 0, 255, 255))
+            image_pos = QPoint(0, 0)
+        start = event.pos() - QPoint(self.pos_x, self.pos_y) - image_pos
+        # determine if start is outside of the image, if so, resize the image to fit
 
-            if self.shift_is_pressed:  # draw a strait line by combining the line segments
-                if len(self.current_layer.lines) > self.start_drawing_line_index:
-                    start_line = self.current_layer.lines[self.start_drawing_line_index]
-                    end_line = self.current_layer.lines[self.stop_drawing_line_index - 1]
-                    new_line_data = LineData(
-                        start_line.start_point,
-                        end_line.end_point,
-                        start_line.pen,
-                        start_line.layer_index,
-                        start_line.opacity
-                    )
-                    self.current_layer.lines = self.current_layer.lines[:self.start_drawing_line_index]
-                    self.current_layer.lines.append(new_line_data)
+        # add_width = 0
+        # add_height = 0
+        # if start.x() > image.width:
+        #     add_width = start.x() - image.width
+        # elif start.x() < 0:
+        #     add_width = abs(start.x())
+        # if start.y() > image.height:
+        #     add_height = start.y() - image.height
+        # elif start.y() < 0:
+        #     add_height = abs(start.y())
+        #
+        # image_width = image.width + add_width
+        # image_height = image.height + add_height
+        #
+        # new_image = Image.new("RGBA", (image_width, image_height), (0, 0, 255, 255))
+        # new_image.paste(image, (0, 0))
+        # image = new_image
+        #
+        # if start.x() < 0:
+        #     # start.setX(0)
+        #     image_pos.setX(start.x())
+        # if start.y() < 0:
+        #     # start.setY(0)
+        #     image_pos.setY(start.y())
+        # print(image_pos)
 
-        end = event.pos() - QPoint(self.pos_x + 1, self.pos_y)
-        line_data = LineData(start, end, pen, self.current_layer_index, opacity)
-        self.current_layer.lines.append(line_data)
+
+        if start.x() > image.width or start.y() > image.height:
+            print("Asdf")
+            new_image = Image.new("RGBA", (max(start.x(), image.width), max(start.y(), image.height)), (0, 0, 255, 255))
+            new_image.paste(image, (0, 0))
+            image = new_image
+            # image_pos = QPoint(min(start.x(), image.width), min(start.y(), image.height))
+            start -= image_pos
+        #print(event.pos().x(), event.pos().y(), self.pos_x, self.pos_y, image_pos.x(), image_pos.y())
+        if start.x() < image_pos.x() or start.y() < image_pos.y():
+            # expand the image to the left or top
+            add_x = 0 if start.x() >= image_pos.x() else abs(event.pos().x()-self.pos_x)
+            add_y = 0 if start.y() >= image_pos.y() else abs(event.pos().y()-self.pos_y)
+            new_image = Image.new("RGBA", (max(image.width, add_x+image.width), max(image.height, add_y+image.height)), (255, 0, 0, 255))
+            new_image.paste(image, (add_x, add_y))
+            image = new_image
+            image_pos = QPoint(image_pos.x() if add_x == 0 else image_pos.x()-add_x, image_pos.y() if add_y == 0 else image_pos.y()-add_y)
+
+        if image:
+            image = image.copy()
+            draw = ImageDraw.Draw(image)
+            if self.last_pos is None:
+                self.last_pos = start
+            draw.line([
+                self.last_pos.x(),
+                self.last_pos.y(),
+                start.x(),
+                start.y()
+            ], fill=self.settings_manager.settings.primary_color.get(), width=brush_size * 2, joint="curve")
+            draw.ellipse((
+                start.x() - brush_size,
+                start.y() - brush_size,
+                start.x() + brush_size,
+                start.y() + brush_size
+            ), fill=self.settings_manager.settings.primary_color.get())
+            image_data = ImageData(image_pos, image)
+            if len(self.current_layer.images) == 0:
+                self.current_layer.images.append(image_data)
+            else:
+                self.current_layer.images[0] = image_data
+            self.last_pos = start
+            self.update()
         self.update()
+
+    # def handle_draw(self, event):
+    #     start = event.pos() - QPoint(self.pos_x, self.pos_y)
+    #     pen = self.pen(event)
+    #     opacity = 255
+    #     if event.button() == Qt.MouseButton.LeftButton or Qt.MouseButton.LeftButton in event.buttons():
+    #         opacity = self.primary_brush_opacity
+    #     elif event.button() == Qt.MouseButton.RightButton or Qt.MouseButton.RightButton in event.buttons():
+    #         opacity = self.secondary_brush_opacity
+    #     if len(self.current_layer.lines) > 0:
+    #         previous = LineData(self.current_layer.lines[-1].start_point, start, pen, self.current_layer_index, opacity)
+    #         self.current_layer.lines[-1] = previous
+    #
+    #         if self.shift_is_pressed:  # draw a strait line by combining the line segments
+    #             if len(self.current_layer.lines) > self.start_drawing_line_index:
+    #                 start_line = self.current_layer.lines[self.start_drawing_line_index]
+    #                 end_line = self.current_layer.lines[self.stop_drawing_line_index - 1]
+    #                 new_line_data = LineData(
+    #                     start_line.start_point,
+    #                     end_line.end_point,
+    #                     start_line.pen,
+    #                     start_line.layer_index,
+    #                     start_line.opacity
+    #                 )
+    #                 self.current_layer.lines = self.current_layer.lines[:self.start_drawing_line_index]
+    #                 self.current_layer.lines.append(new_line_data)
+    #
+    #     end = event.pos() - QPoint(self.pos_x + 1, self.pos_y)
+    #     line_data = LineData(start, end, pen, self.current_layer_index, opacity)
+    #     self.current_layer.lines.append(line_data)
+    #     self.update()
 
     def get_line_extremities(self):
         for line in self.current_layer.lines:

@@ -279,6 +279,7 @@ class Canvas(
             self.left_mouse_button_down = False
             self.right_mouse_button_down = False
             self.start_drawing_line_index = None
+            self.last_pos = None
             if self.brush_selected:
                 self.stop_drawing_line_index = len(self.current_layer.lines)
                 self.update()
