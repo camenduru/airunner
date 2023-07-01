@@ -393,6 +393,60 @@ class GeneratorMixin(LoraMixin):
         self.initialize_size_form_elements()
         self.initialize_size_sliders()
         self.initialize_lora()
+        self.set_styles()
+
+    def set_styles(self):
+        # we want window_styles to only affect the window not the subwidgets
+        window_styles = """
+            border: 1px solid red;
+            padding-left: 0px;
+            margin-left: 0px;
+        """
+        self.window.setStyleSheet(window_styles)
+        # the above stylesheet is applied to the window, but it changes all of the subwidgets. why?
+        # answer: https://stackoverflow.com/questions/48256772/why-does-qt-stylesheet-affect-all-widgets-in-a-window
+
+        section_styles = """
+            QTabWidget::pane { 
+                border: 0;
+                border-radius: 0px; 
+            }
+            QTabBar::tab { 
+                border-radius: 0px; 
+                margin: 0px; padding: 5px 10px;
+                border: 0px;
+            }
+            QTabBar::tab:selected { 
+                background-color: #1e90ff;
+                color: white;
+                border: 0px;
+            }
+        """
+        pipeline_styles = """
+            QTabWidget::pane { 
+                border: 0;
+                border-left: 1px solid #d2d2d2;
+                border-radius: 0px; 
+            }
+            QTabBar::tab { 
+                border-radius: 0px; 
+                margin: 0px; padding: 10px 5px;
+                border: 0px;
+            }
+            QTabBar::tab:selected { 
+                background-color: #1e90ff;
+                color: white;
+                border: 0px;
+            }
+        """
+        self.window.sectionTabWidget.setStyleSheet(section_styles)
+        self.window.stableDiffusionTabWidget.setStyleSheet(pipeline_styles)
+        self.window.kandinskyTabWidget.setStyleSheet(pipeline_styles)
+
+
+        # iterate over each tab in self.window.stableDiffusionTabWidget
+        for i in range(self.window.stableDiffusionTabWidget.count()):
+            tab = self.window.stableDiffusionTabWidget.widget(i).PromptTabsSection.setStyleSheet("QTabWidget::pane { border: 0; }")
 
     def handle_deterministic_radio_change(self, val, tab):
         self.deterministic = tab.deterministic_radio.isChecked()
